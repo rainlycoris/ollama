@@ -39,6 +39,7 @@ import (
 	"sync"
 	"unsafe"
 
+	fsggml "github.com/ollama/ollama/fs/ggml"
 	_ "github.com/ollama/ollama/llama/llama.cpp/common"
 	_ "github.com/ollama/ollama/llama/llama.cpp/src"
 	_ "github.com/ollama/ollama/llama/llama.cpp/tools/mtmd"
@@ -113,8 +114,27 @@ func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, fla
 	params.n_threads_batch = params.n_threads
 	params.embeddings = C.bool(true)
 	params.flash_attn = C.bool(flashAttention)
-	params.type_k = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
-	params.type_v = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
+	// Handle differentiated KV cache types
+	lowerType := strings.ToLower(kvCacheType)
+
+	kTypeStr, vTypeStr, _, err := fsggml.ParseKVStoreTypes(lowerType)
+	if err != nil {
+		// If parsing fails (e.g. malformed differentiated string),
+		// log the error and default to F16 for both.
+		// Or, one could attempt to parse lowerType as a single type if that's desired fallback.
+		// For now, defaulting to F16 on error.
+		slog.Warn("failed to parse KV cache type string, defaulting to F16", "type", kvCacheType, "error", err)
+		params.type_k = kvCacheTypeFromStr("f16") // Default
+		params.type_v = kvCacheTypeFromStr("f16") // Default
+	} else {
+		if kTypeStr == "" && vTypeStr == "" { // Empty string means use default
+			params.type_k = kvCacheTypeFromStr("f16")
+			params.type_v = kvCacheTypeFromStr("f16")
+		} else {
+			params.type_k = kvCacheTypeFromStr(kTypeStr)
+			params.type_v = kvCacheTypeFromStr(vTypeStr)
+		}
+	}
 
 	return ContextParams{c: params}
 }

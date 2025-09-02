@@ -270,6 +270,90 @@ func TestKeyValue(t *testing.T) {
 	}
 }
 
+func TestSupportsKVCacheType(t *testing.T) {
+	ggml := GGML{}
+
+	// Test standard types
+	if !ggml.SupportsKVCacheType("f16") {
+		t.Error("f16 should be supported")
+	}
+	if !ggml.SupportsKVCacheType("q8_0") {
+		t.Error("q8_0 should be supported")
+	}
+	if !ggml.SupportsKVCacheType("q4_0") {
+		t.Error("q4_0 should be supported")
+	}
+	if ggml.SupportsKVCacheType("q2_k") {
+		t.Error("q2_k should not be supported")
+	}
+
+	// Test custom format for differentiated quantization
+	if !ggml.SupportsKVCacheType("k=q8_0,v=q4_0") {
+		t.Error("k=q8_0,v=q4_0 should be supported")
+	}
+	if !ggml.SupportsKVCacheType("k=f16,v=q8_0") {
+		t.Error("k=f16,v=q8_0 should be supported")
+	}
+
+	// Test invalid formats
+	if ggml.SupportsKVCacheType("k=q8_0") {
+		t.Error("k=q8_0 should not be supported (missing v part)")
+	}
+	if ggml.SupportsKVCacheType("v=q4_0") {
+		t.Error("v=q4_0 should not be supported (missing k part)")
+	}
+	if ggml.SupportsKVCacheType("k=q8_0,v=q4_0,extra=value") {
+		t.Error("k=q8_0,v=q4_0,extra=value should not be supported (too many parts)")
+	}
+	if ggml.SupportsKVCacheType("key=q8_0,value=q4_0") {
+		t.Error("key=q8_0,value=q4_0 should not be supported (invalid keys)")
+	}
+	if ggml.SupportsKVCacheType("k=q8_0,v=invalid") {
+		t.Error("k=q8_0,v=invalid should not be supported (invalid value type)")
+	}
+	if ggml.SupportsKVCacheType("k8v4") {
+		t.Error("k8v4 should not be supported anymore (replaced with custom format)")
+	}
+}
+
+func TestKVCacheBytesPerElement(t *testing.T) {
+	// Test standard types
+	cases := []struct {
+		name      string
+		cacheType string
+		expected  float64
+	}{
+		{"default_f16", "", 2.0},
+		{"explicit_f16", "f16", 2.0},
+		{"q8_0", "q8_0", 1.0},
+		{"q4_0", "q4_0", 0.5},
+
+		// Test differentiated format
+		{"same_types_q8", "k=q8_0,v=q8_0", 1.0},
+		{"same_types_q4", "k=q4_0,v=q4_0", 0.5},
+		{"same_types_f16", "k=f16,v=f16", 2.0},
+
+		// Mixed types
+		{"mixed_q8_q4", "k=q8_0,v=q4_0", 0.75}, // Average of 1.0 and 0.5
+		{"mixed_f16_q8", "k=f16,v=q8_0", 1.5},  // Average of 2.0 and 1.0
+		{"mixed_f16_q4", "k=f16,v=q4_0", 1.25}, // Average of 2.0 and 0.5
+
+		// Invalid formats should default to f16 (2.0)
+		{"invalid_format", "invalid", 2.0},
+		{"partial_format", "k=q8_0", 2.0},
+		{"malformed", "k=q8_0,vq4_0", 2.0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := kvCacheBytesPerElement(tc.cacheType)
+			if math.Abs(result-tc.expected) > 1e-6 {
+				t.Errorf("kvCacheBytesPerElement(%q) = %f, expected %f",
+					tc.cacheType, result, tc.expected)
+			}
+		})
+	}
+}
 func TestHeadCount(t *testing.T) {
 	valuesArray := []int32{1, 5, 3, 4}
 	cases := []struct {

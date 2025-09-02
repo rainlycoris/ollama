@@ -186,6 +186,35 @@ func (kv KV) OllamaEngineRequired() bool {
 	}, kv.Architecture())
 }
 
+// ParseKVCacheTypes parses a KV cache type string.
+// The format can be "TYPEK:TYPEV" (e.g., "q8_0:q4_0") or a single "TYPE" (e.g., "f16").
+// A single "TYPE" is treated as "TYPE:TYPE".
+// It returns the K type string, V type string, a boolean indicating if the
+// original input used the colon-separated format, and an error if parsing failed.
+// For an empty input string, it returns "f16", "f16", nil.
+func ParseKVCacheTypes(s string) (kType string, vType string, err error) {
+	str := strings.TrimSpace(strings.ToLower(s))
+	if str == "" {
+		return "f16", "f16", nil
+	}
+
+	if strings.Contains(str, ":") {
+		parts := strings.Split(str, ":")
+		if len(parts) != 2 {
+			return "f16", "f16", fmt.Errorf("invalid KV cache format: expected TYPEK:TYPEV, got '%s'", str)
+		}
+		k := strings.TrimSpace(parts[0])
+		v := strings.TrimSpace(parts[1])
+		if k == "" || v == "" {
+			return "f16", "f16", fmt.Errorf("invalid KV cache format: type K or V is empty in '%s'", str)
+		}
+		return k, v, nil
+	} else {
+		// Single type provided, use it for both K and V
+		return str, str, nil
+	}
+}
+
 type valueTypes interface {
 	uint8 | int8 | uint16 | int16 |
 		uint32 | int32 | uint64 | int64 |
@@ -764,7 +793,14 @@ func (f GGML) SupportsKVCacheType(cacheType string) bool {
 		slog.Warn("model only supports non-quantized cache types ", "mode", arch)
 		return cacheType == "f16"
 	}
-	return slices.Contains([]string{"f16", "q8_0", "q4_0"}, cacheType)
+	kTypeStr, vTypeStr, err := ParseKVCacheTypes(cacheType)
+	if err != nil {
+		slog.Debug("parsing KV cache type string failed for support check", "type", cacheType, "error", err)
+		return false
+	}
+
+	validTypes := []string{"f16", "q8_0", "q4_0"}
+	return slices.Contains(validTypes, kTypeStr) && slices.Contains(validTypes, vTypeStr)
 }
 
 // SupportsFlashAttention checks if the model supports flash attention
@@ -789,7 +825,35 @@ func (f GGML) FlashAttention() bool {
 
 // kvCacheBytesPerElement returns the number of bytes per element for a given KV cache type
 func kvCacheBytesPerElement(cacheType string) float64 {
-	switch cacheType {
+	kTypeStr, vTypeStr, err := ParseKVCacheTypes(cacheType)
+	defaultSize := typeBytes("f16")
+
+	if err != nil {
+		slog.Debug("parsing KV cache type string failed for byte calculation", "type", cacheType, "error", err)
+		return defaultSize
+	}
+
+	if kTypeStr == "" && vTypeStr == "" { // Empty string input
+		slog.Debug("empty KV cache type string for byte calculation, using default f16", "type", cacheType)
+		return defaultSize
+	}
+
+	// ParseKVCacheTypes now ensures kTypeStr and vTypeStr are either both valid or it errors (or both empty for empty input).
+	// So, we just need to calculate based on them.
+	kBytes := typeBytes(kTypeStr)
+	vBytes := typeBytes(vTypeStr)
+
+	if kBytes <= 0 || vBytes <= 0 { // typeBytes returns 0 or less for unknown/unsupported types
+		slog.Warn("unknown type in KV cache for byte calculation, using default f16", "kType", kTypeStr, "vType", vTypeStr, "original", cacheType)
+		return defaultSize
+	}
+
+	return (kBytes + vBytes) / 2.0
+}
+
+// typeBytes returns the number of bytes per element for a specific type
+func typeBytes(typeName string) float64 {
+	switch typeName {
 	case "q8_0":
 		return 1 // 1/2 of fp16
 	case "q4_0":

@@ -17,6 +17,10 @@ type EncoderCache struct {
 	// config controls mostly backend-specific optimizations
 	config *ml.CacheConfig
 
+	// Data types for key and value caches
+	DTypeK ml.DType
+	DTypeV ml.DType
+
 	// ** current forward pass **
 
 	// the active layer for Get and Put
@@ -54,7 +58,7 @@ func NewEncoderCache() *EncoderCache {
 	}
 }
 
-func (c *EncoderCache) Init(backend ml.Backend, dtype ml.DType, maxSequences, capacity, maxBatch int) {
+func (c *EncoderCache) Init(backend ml.Backend, typeK, typeV ml.DType, maxSequences, capacity, maxBatch int) {
 	if c.config == nil {
 		var config ml.CacheConfig
 		if cc, ok := backend.(ml.BackendCacheConfig); ok {
@@ -71,6 +75,11 @@ func (c *EncoderCache) Init(backend ml.Backend, dtype ml.DType, maxSequences, ca
 		panic(fmt.Errorf("encoder cache is unable to enforce requested CachePadding (%v)", c.config.CachePadding))
 	}
 
+
+
+	c.DTypeK = typeK
+	c.DTypeV = typeV
+	
 	c.backend = backend
 }
 

@@ -324,7 +324,9 @@ The K/V context cache can be quantized to significantly reduce memory usage when
 
 To use quantized K/V cache with Ollama you can set the following environment variable:
 
-- `OLLAMA_KV_CACHE_TYPE` - The quantization type for the K/V cache.  Default is `f16`.
+- `OLLAMA_KV_CACHE_TYPE` - The quantization type for the K/V cache. Default is `f16`. Valid options:
+  - Single types like `f16`, `q8_0`, `q4_0`. These are shorthands that are normalized to the `TYPE:TYPE` format (e.g., `f16` is treated as `f16:f16`), applying the same quantization to both keys and values.
+  - Colon-separated `TYPEK:TYPEV` format (e.g., `q8_0:q4_0`) for specifying different quantization for keys (K) and values (V) respectively.
 
 > Note: Currently this is a global option - meaning all models will run with the specified quantization type.
 
@@ -334,7 +336,9 @@ The currently available K/V cache quantization types are:
 - `q8_0` - 8-bit quantization, uses approximately 1/2 the memory of `f16` with a very small loss in precision, this usually has no noticeable impact on the model's quality (recommended if not using f16).
 - `q4_0` - 4-bit quantization, uses approximately 1/4 the memory of `f16` with a small-medium loss in precision that may be more noticeable at higher context sizes.
 
-How much the cache quantization impacts the model's response quality will depend on the model and the task.  Models that have a high GQA count (e.g. Qwen2) may see a larger impact on precision from quantization than models with a low GQA count.
+When using the colon-separated format (e.g., `q8_0:q4_0`), you can mix these types for keys and values.
+
+How much the cache quantization impacts the model's response quality will depend on the model and the task. Models that have a high GQA count (e.g. Qwen2) may see a larger impact on precision from quantization than models with a low GQA count.
 
 You may need to experiment with different quantization types to find the best balance between memory usage and quality.
 

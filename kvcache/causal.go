@@ -19,7 +19,8 @@ type shiftFn func(ctx ml.Context, layer int, key, shift ml.Tensor) (ml.Tensor, e
 // The tensors are of shape embed dim, kv heads, batch size
 // The mask is of shape history size, batch size
 type Causal struct {
-	DType ml.DType
+	DTypeK     ml.DType
+	DTypeV     ml.DType
 
 	// swaWindowSize is the number of tokens that will be included in the mask
 	// during attention operations. swaMemorySize is the number of tokens that
@@ -133,7 +134,7 @@ func NewChunkedAttentionCache(chunkSize int32, shift shiftFn) *Causal {
 	}
 }
 
-func (c *Causal) Init(backend ml.Backend, dtype ml.DType, maxSequences, capacity, maxBatch int) {
+func (c *Causal) Init(backend ml.Backend, typeK, typeV ml.DType, maxSequences, capacity, maxBatch int) {
 	if c.config == nil {
 		var config ml.CacheConfig
 		if cc, ok := backend.(ml.BackendCacheConfig); ok {
@@ -177,7 +178,8 @@ func (c *Causal) Init(backend ml.Backend, dtype ml.DType, maxSequences, capacity
 	cacheSize = roundUp(cacheSize, c.config.CachePadding)
 	c.cells = make([]cacheCell, cacheSize)
 
-	c.DType = dtype
+	c.DTypeK = typeK
+	c.DTypeV = typeV
 	c.cellRanges = make(map[int]cellRange)
 	c.backend = backend
 	c.maxBatch = maxBatch
@@ -596,14 +598,14 @@ func (c *Causal) Put(ctx ml.Context, key, value ml.Tensor) {
 	}
 
 	if _, ok := c.keys[c.curLayer]; !ok {
-		c.keys[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DType, kHeadDim, numKVHeads, len(c.cells))
+		c.keys[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DTypeK, kHeadDim, numKVHeads, len(c.cells))
 	}
 
 	if _, ok := c.values[c.curLayer]; !ok {
 		if c.config.PermutedV {
-			c.values[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DType, len(c.cells), vHeadDim, numKVHeads)
+			c.values[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DTypeV, len(c.cells), vHeadDim, numKVHeads)
 		} else {
-			c.values[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DType, vHeadDim, numKVHeads, len(c.cells))
+			c.values[c.curLayer] = c.ctxs[c.curLayer].Zeros(c.DTypeV, vHeadDim, numKVHeads, len(c.cells))
 		}
 	}
 

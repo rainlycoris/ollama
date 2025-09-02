@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
+	"github.com/ollama/ollama/fs/ggml"
 	"github.com/ollama/ollama/kvcache"
 	"github.com/ollama/ollama/ml"
 	"github.com/ollama/ollama/model"
@@ -46,7 +48,8 @@ func NewInputCache(model model.Model, kvCacheType string, kvSize int32, numSlots
 
 	cache := model.Config().Cache
 	if cache != nil {
-		cache.Init(model.Backend(), kvCacheTypeFromStr(kvCacheType), numSlots, int(numCtx), batchSize)
+		typeK, typeV := kvCacheTypesFromStr(kvCacheType)
+		cache.Init(model.Backend(), typeK, typeV, numSlots, int(numCtx), batchSize)
 	}
 
 	return &InputCache{
@@ -58,7 +61,38 @@ func NewInputCache(model model.Model, kvCacheType string, kvSize int32, numSlots
 	}, nil
 }
 
-func kvCacheTypeFromStr(s string) ml.DType {
+// kvCacheTypesFromStr parses a KV cache type string and returns separate types for K and V
+func kvCacheTypesFromStr(s string) (ml.DType, ml.DType) {
+	defaultMlType := ml.DTypeF16
+
+	if strings.TrimSpace(s) == "" {
+		return defaultMlType, defaultMlType
+	}
+
+	kTypeStr, vTypeStr, _, err := ggml.ParseKVStoreTypes(s)
+	if err != nil {
+		slog.Debug("parsing KV cache type string failed for ml.DType conversion", "type", s, "error", err)
+		// Fallback to trying the original string as a single type if parsing fails
+		// This maintains compatibility with simple type strings that might be rejected by the stricter ParseKVStoreTypes
+		dtype := getTypeFromString(s)
+		return dtype, dtype
+	}
+
+	// If ParseKVStoreTypes returns empty strings (e.g. for an initially empty input it now handles),
+	// default to F16. This case should ideally be caught by the TrimSpace check above,
+	// but as a safeguard:
+	if kTypeStr == "" && vTypeStr == "" {
+		return defaultMlType, defaultMlType
+	}
+
+	mlKType := getTypeFromString(kTypeStr)
+	mlVType := getTypeFromString(vTypeStr)
+
+	return mlKType, mlVType
+}
+
+// getTypeFromString converts a string cache type to the corresponding ml.DType
+func getTypeFromString(s string) ml.DType {
 	switch s {
 	case "q8_0":
 		return ml.DTypeQ80

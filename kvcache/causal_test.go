@@ -25,7 +25,7 @@ func TestStore(t *testing.T) {
 	cache := NewCausalCache(nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	tests := []testCase{
 		{
@@ -58,7 +58,7 @@ func TestSWA(t *testing.T) {
 	cache := NewSWACache(1, nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	x := float32(math.Inf(-1))
 
@@ -101,7 +101,7 @@ func TestSWAMem(t *testing.T) {
 	cache := NewSWAMemCache(1, 3, nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	x := float32(math.Inf(-1))
 
@@ -202,7 +202,7 @@ func TestSequences(t *testing.T) {
 	cache := NewCausalCache(nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	tests := []testCase{
 		{
@@ -237,7 +237,7 @@ func TestRemove(t *testing.T) {
 	})
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	tests := []testCase{
 		{
@@ -302,7 +302,7 @@ func TestDefrag(t *testing.T) {
 	})
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	tests := []testCase{
 		{
@@ -350,7 +350,7 @@ func TestCopy(t *testing.T) {
 	cache := NewCausalCache(func(ctx ml.Context, layer int, key, shift ml.Tensor) (ml.Tensor, error) { return key, nil })
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	tests := []testCase{
 		{
@@ -425,7 +425,7 @@ func TestCanResume(t *testing.T) {
 	cache := NewSWACache(windowSize, nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	context := backend.NewContext()
 	defer context.Close()
@@ -497,7 +497,7 @@ func TestCanResumeSWAMem(t *testing.T) {
 	cache := NewSWAMemCache(windowSize, memSize, nil)
 	defer cache.Close()
 
-	cache.Init(backend, ml.DTypeF16, 1, 16, 16)
+	cache.Init(backend, ml.DTypeF16, ml.DTypeF16, 1, 16, 16)
 
 	context := backend.NewContext()
 	defer context.Close()

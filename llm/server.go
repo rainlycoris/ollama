@@ -218,9 +218,9 @@ func NewLlamaServer(gpus discover.GpuInfoList, modelPath string, f *ggml.GGML, a
 
 		// Flash Attention also supports kv cache quantization
 		// Enable if the requested and kv cache type is supported by the model
-		if kvct != "" && f.SupportsKVCacheType(kvct) {
+		if f.SupportsKVCacheType(kvct) {
 			loadRequest.KvCacheType = kvct
-		} else {
+		} else if kvct != "" {
 			slog.Warn("kv cache type not supported by model", "type", kvct)
 		}
 	} else if kvct != "" && kvct != "f16" {

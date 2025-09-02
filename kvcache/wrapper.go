@@ -23,9 +23,9 @@ func NewWrapperCache(caches ...Cache) *WrapperCache {
 	}
 }
 
-func (c *WrapperCache) Init(backend ml.Backend, dtype ml.DType, maxSequences, capacity, maxBatch int) {
+func (c *WrapperCache) Init(backend ml.Backend, typeK, typeV ml.DType, maxSequences, capacity, maxBatch int) {
 	for _, cache := range c.caches {
-		cache.Init(backend, dtype, maxSequences, capacity, maxBatch)
+		cache.Init(backend, typeK, typeV, maxSequences, capacity, maxBatch)
 	}
 }
 

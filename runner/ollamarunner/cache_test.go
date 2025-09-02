@@ -438,15 +438,16 @@ func (m *mockCache) Remove(seq int, beginIndex, endIndex int32) error {
 }
 
 // Stub implementations for other interface methods
-func (m *mockCache) SetLayer(layer int)                                                            {}
-func (m *mockCache) Get(ctx ml.Context) (ml.Tensor, ml.Tensor, ml.Tensor)                          { return nil, nil, nil }
-func (m *mockCache) Put(ctx ml.Context, key, value ml.Tensor)                                      {}
-func (m *mockCache) Init(backend ml.Backend, dtype ml.DType, maxSequences, capacity, maxBatch int) {}
-func (m *mockCache) Close()                                                                        {}
-func (m *mockCache) StartForward(ctx ml.Context, batch input.Batch, reserve bool) error            { return nil }
-func (m *mockCache) CopyPrefix(srcSeq, dstSeq int, len int32)                                      {}
-func (m *mockCache) SetConfig(ml.CacheConfig)                                                      {}
-func (m *mockCache) CanResume(seq int, pos int32) bool                                             { return true }
+func (m *mockCache) SetLayer(layer int)                                   {}
+func (m *mockCache) Get(ctx ml.Context) (ml.Tensor, ml.Tensor, ml.Tensor) { return nil, nil, nil }
+func (m *mockCache) Put(ctx ml.Context, key, value ml.Tensor)             {}
+func (m *mockCache) Init(backend ml.Backend, typeK, typeV ml.DType, maxSequences, capacity, maxBatch int) {
+}
+func (m *mockCache) Close()                                                             {}
+func (m *mockCache) StartForward(ctx ml.Context, batch input.Batch, reserve bool) error { return nil }
+func (m *mockCache) CopyPrefix(srcSeq, dstSeq int, len int32)                           {}
+func (m *mockCache) SetConfig(ml.CacheConfig)                                           {}
+func (m *mockCache) CanResume(seq int, pos int32) bool                                  { return true }                                         { return true }
 
 func TestShiftCacheSlot(t *testing.T) {
 	tests := []struct {
@@ -508,6 +509,44 @@ func TestShiftCacheSlot(t *testing.T) {
 
 			if len(slot.Inputs) != tt.wantInputsLen {
 				t.Errorf("Slot inputs length after operation: got %v, want %v", len(slot.Inputs), tt.wantInputsLen)
+			}
+		})
+	}
+}
+
+func TestKVCacheTypesFromStr(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expectedK ml.DType
+		expectedV ml.DType
+	}{
+		// Test standard types - both K and V should be the same
+		{"default", "", ml.DTypeF16, ml.DTypeF16},
+		{"f16", "f16", ml.DTypeF16, ml.DTypeF16},
+		{"q8_0", "q8_0", ml.DTypeQ80, ml.DTypeQ80},
+		{"q4_0", "q4_0", ml.DTypeQ40, ml.DTypeQ40},
+
+		// Test differentiated format - K and V should be different
+		{"diff_k_q8_v_q4", "k=q8_0,v=q4_0", ml.DTypeQ80, ml.DTypeQ40},
+		{"diff_k_f16_v_q8", "k=f16,v=q8_0", ml.DTypeF16, ml.DTypeQ80},
+		{"diff_k_q4_v_f16", "k=q4_0,v=f16", ml.DTypeQ40, ml.DTypeF16},
+		{"inverted_order", "v=q4_0,k=q8_0", ml.DTypeQ80, ml.DTypeQ40},
+
+		// Test invalid formats (should default to F16 for both)
+		{"partial_k_only", "k=q8_0", ml.DTypeF16, ml.DTypeF16},
+		{"partial_v_only", "v=q4_0", ml.DTypeF16, ml.DTypeF16},
+		{"invalid", "invalid", ml.DTypeF16, ml.DTypeF16},
+		{"too_many_parts", "k=q8_0,v=q4_0,extra=value", ml.DTypeF16, ml.DTypeF16},
+		{"missing_equals", "kq8_0,vq4_0", ml.DTypeF16, ml.DTypeF16},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			typeK, typeV := kvCacheTypesFromStr(tc.input)
+			if typeK != tc.expectedK || typeV != tc.expectedV {
+				t.Errorf("kvCacheTypesFromStr(%q) = (%v, %v), expected (%v, %v)",
+					tc.input, typeK, typeV, tc.expectedK, tc.expectedV)
 			}
 		})
 	}
